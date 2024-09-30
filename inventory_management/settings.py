@@ -1,16 +1,24 @@
 from pathlib import Path
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
+
+#loading environment variables from .env file
+load_dotenv()
+
+SECRET_KEY = os.getenv('SECRET_KEY')
+DEBUG = os.getenv('DEBUG') == 'True'
+DATABASE_NAME = os.getenv('DATABASE_NAME')
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3', #using SQLite backend
+        'NAME': os.getenv('DATABASE_NAME'),
+    }
+}
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%d$*$m#p&*n28p$@2ryx*qna5!xk1szdhb67^7i17o2#41z!2+'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -64,18 +72,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'inventory_management.wsgi.application'
-
-
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

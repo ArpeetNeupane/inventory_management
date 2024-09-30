@@ -11,6 +11,7 @@ class LoginSerializers(serializers.Serializer):
         entered_username = data.get('username')
         entered_password = data.get('password')
 
+        #checking if usernames and password mach the one user entered
         user_authenticate = authenticate(username = entered_username, password = entered_password)
         #authenticate function returns none if user not found
 
