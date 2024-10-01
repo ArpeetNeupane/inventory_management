@@ -1,5 +1,6 @@
-from django.shortcuts import render, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework import generics
+from .models import Inventory
+from .serializers import CategorySerializer
 
-def home(request):
+class CategoryCreateView(generics.ListCreateView):
     pass
