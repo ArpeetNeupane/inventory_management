@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from .serializers import LoginSerializers
-from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -12,8 +12,15 @@ class LoginView(APIView):
         #checking if serializer_instance is valid
         if serializer_instance.is_valid():
             user = serializer_instance.validated_data['user']
+
+            #creating access and refresh token for the user
             access_token = AccessToken.for_user(user)
-            return Response({'token': str(access_token)}, status=status.HTTP_200_OK)
+            refresh_token = RefreshToken.for_user(user)
+
+            return Response({
+                'access_token': str(access_token),
+                'refresh_token':  str(refresh_token),
+            }, status=status.HTTP_200_OK)
         
         return Response(serializer_instance.errors, status=status.HTTP_400_BAD_REQUEST)
         
