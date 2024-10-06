@@ -13,7 +13,7 @@ class CategorySerializer(serializers.ModelSerializer):
     
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Items    
+        model = Items
         fields = '__all__'
 
     def validate_name(self, value):
