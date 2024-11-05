@@ -12,18 +12,19 @@ DATABASE_NAME = os.getenv('DATABASE_NAME')
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3', #using SQLite backend
+        'ENGINE': 'django.db.backends.postgresql', #using postgresql for backend
         'NAME': os.getenv('DATABASE_NAME'),
+        'USER': os.getenv('DATABASE_USER'),
+        'PASSWORD': os.getenv('PASSWORD'),
+        'HOST': os.getenv('DATABASE_HOST'),
+        'PORT': os.getenv('DATABASE_PORT'),
     }
 }
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'smarc-inventory.onrender.com', 'smarc-inventory.vercel.app']
 
 
 # Application definition
@@ -35,10 +36,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # third party
+    #third party
     'rest_framework',
     'rest_framework_simplejwt',
-    # local
+    #local
     'inventory',
     'accounts',
 ]

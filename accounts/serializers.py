@@ -13,7 +13,7 @@ class LoginSerializers(serializers.Serializer):
 
         #checking if usernames and password mach the one user entered
         user_authenticate = authenticate(username = entered_username, password = entered_password)
-        #authenticate function returns none if user not found
+        #authenticate function returns none if user not found, if authenticated returns user
 
         #authenticating/ checking if user exists
         if user_authenticate is None:
