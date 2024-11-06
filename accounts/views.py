@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from .serializers import LoginSerializers
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
-from rest_framework.response import Response
+from rest_framework.response import Response #will take in any py data or already serialized data and will render it out as json
 from rest_framework import status
 
 class LoginView(APIView):
@@ -23,4 +23,3 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
         
         return Response(serializer_instance.errors, status=status.HTTP_400_BAD_REQUEST)
-        
