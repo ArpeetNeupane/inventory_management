@@ -1,40 +1,73 @@
 from django.db import models, transaction
 from math import ceil
 
-##**********Need to update: itemCode and iteQuamtity in same not feasible without multiple body table || check admin panel*************
+class IndividualItem(models.Model):
+    item = models.ForeignKey('Item', on_delete=models.CASCADE, related_name='individual_items')
+    itemCode = models.CharField(max_length=6, unique=True)
+    is_available = models.BooleanField(default=True)  # To track if item is assigned/used
+
+    def __str__(self):
+        return f"{self.item.itemName} - {self.itemCode}"
 
 class Item(models.Model):
     itemName = models.CharField(max_length=30)
     itemQuantity = models.PositiveIntegerField(default=1)
-    itemCode = models.CharField(max_length=5, unique=True, editable=False)
-    itemCategory = models.ForeignKey('Category', on_delete=models.PROTECT) #protects the category from being deleted before all items are deleted
+    itemCategory = models.ForeignKey('Category', on_delete=models.PROTECT)
     
-    #auto generation of item code when each instance is saved
     def save(self, *args, **kwargs):
-        if not self.itemCode:
-            prefix = self.itemName[:2].capitalize()
-            
-            #searching if item code with that prefix already exists
-            last_item = Item.objects.filter(itemCode__startswith=prefix).order_by('-itemCode').first() #sorting in desc order to find the most recent one(if exists)
-            #if exists, goes to if, else creating a new code with code = {prefix}01
-            if last_item:
-                #extract number part regardless of length
-                number_part = last_item.itemCode[2:] #skipping 2 index, hence starts from numbers
-                last_number = int(number_part)
-                new_number = last_number + 1
-                
-                #determining format based on number size, after no of items of same type increases past 99, using 3 digits
-                if new_number <= 99:
-                    self.itemCode = f"{prefix}{new_number:02d}" #02d: format specifier for consistent code, turns Ra2 to Ra02
-                else:
-                    self.itemCode = f"{prefix}{new_number:03d}"  #using 3 digits after 99
-            else:
-                self.itemCode = f"{prefix}01"
+        is_new = self.pk is None  # Check if this is a new item
+        old_quantity = Item.objects.filter(pk=self.pk).values_list('itemQuantity', flat=True).first() if self.pk else 0
         
+        # Save the main item first
         super().save(*args, **kwargs)
-    
+        
+        if is_new:
+            # Generate codes for all new items
+            self._generate_individual_codes(self.itemQuantity)
+        elif self.itemQuantity > old_quantity:
+            # Generate additional codes if quantity increased
+            additional_quantity = self.itemQuantity - old_quantity
+            self._generate_individual_codes(additional_quantity)
+        elif self.itemQuantity < old_quantity:
+            # Remove excess codes if quantity decreased
+            excess_items = self.individual_items.filter(
+                is_available=True
+            ).order_by('-itemCode')[:old_quantity - self.itemQuantity]
+            excess_items.delete()
+
+    def _generate_individual_codes(self, quantity):
+        prefix = self.itemName[:2].upper()
+        
+        # Get the last used number for this prefix
+        last_item = IndividualItem.objects.filter(
+            itemCode__startswith=prefix
+        ).order_by('-itemCode').first()
+
+        start_number = 1
+        if last_item:
+            # Extract the number part and increment
+            number_part = last_item.itemCode[2:]
+            start_number = int(number_part) + 1
+
+        # Create individual items with unique codes
+        individual_items = []
+        for i in range(quantity):
+            number = start_number + i
+            # Use 4 digits for the number part (allowing up to 9999 items)
+            item_code = f"{prefix}{number:04d}"
+            individual_items.append(IndividualItem(
+                item=self,
+                itemCode=item_code
+            ))
+        
+        IndividualItem.objects.bulk_create(individual_items)
+
     def __str__(self):
         return f"{self.itemName}"
+
+    @property
+    def available_quantity(self):
+        return self.individual_items.filter(is_available=True).count()
 
 class Category(models.Model):
     categoryName = models.CharField(max_length=30, unique=True)
