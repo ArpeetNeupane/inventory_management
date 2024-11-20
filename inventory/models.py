@@ -1,4 +1,4 @@
-from django.db import models, transaction
+from django.db import models
 from math import ceil
 
 class IndividualItem(models.Model):

@@ -9,9 +9,10 @@ class LoginView(APIView):
         #creating a new instance of serializer based on user login details
         serializer_instance = LoginSerializers(data=request.data)
 
-        #checking if serializer_instance is valid
+        #checking if serializer_instance is valid according to serializer's defined validation rules
         if serializer_instance.is_valid():
-            user = serializer_instance.validated_data['user']
+            user = serializer_instance.validated_data['user'] #validated_data contains data after is_valid is true, and user is key of dict 
+                                                              #containing user data, so variable user contains value corresponding to key user
 
             #creating access and refresh token for the user
             access_token = AccessToken.for_user(user)
@@ -19,7 +20,7 @@ class LoginView(APIView):
 
             return Response({
                 'access_token': str(access_token),
-                'refresh_token':  str(refresh_token),
+                'refresh_token':  str(refresh_token), #also blacklist tokens
             }, status=status.HTTP_200_OK)
         
         return Response(serializer_instance.errors, status=status.HTTP_400_BAD_REQUEST)
