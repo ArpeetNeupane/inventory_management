@@ -22,15 +22,14 @@ filelock==3.15.4
 flatbuffers==24.3.25
 fonttools==4.53.1
 google-ai-generativelanguage==0.6.10
-google-api-core==2.19.1
-google-api-python-client==2.142.0
-google-auth==2.33.0
+google-api-core==2.23.0
+google-api-python-client==2.153.0
+google-auth==2.36.0
 google-auth-httplib2==0.2.0
 google-generativeai==0.8.3
-googleapis-common-protos==1.63.2
+googleapis-common-protos==1.66.0
 grpcio==1.67.0
 grpcio-status==1.67.0
-gunicorn
 httplib2==0.22.0
 idna==3.7
 kiwisolver==1.4.5
@@ -67,3 +66,4 @@ tzdata==2024.1
 uritemplate==4.1.1
 urllib3==2.2.2
 virtualenv==20.26.3
+whitenoise==6.8.2
