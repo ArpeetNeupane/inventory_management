@@ -44,9 +44,9 @@ class SupplierAdmin(admin.ModelAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ('billNo', 'supplier', 'totalPrice', 'finalPriceWithVat', 'date')
+    list_display = ('billNo', 'supplier', 'totalPrice', 'finalPriceWithVat', 'date', 'paymentStatus')
     search_fields = ('billNo', 'supplier__supplierName')
-    list_filter = ('date', 'supplier')
+    list_filter = ('date', 'supplier', 'paymentStatus')
     readonly_fields = ('totalPrice', 'finalPriceWithVat')
     inlines = [TransactionItemInline]
 

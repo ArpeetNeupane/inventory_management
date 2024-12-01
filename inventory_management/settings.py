@@ -41,8 +41,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     #local
-    'inventory',
+    #'inventory',
     'accounts',
+    #signals app config
+    'inventory.apps.InventoryConfig',
 ]
 
 MIDDLEWARE = [

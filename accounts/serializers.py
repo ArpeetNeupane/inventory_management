@@ -21,7 +21,4 @@ class LoginSerializers(serializers.Serializer):
         
         #if user is found, is returning in a dictionary, returning in a dict -- managing maintainability
         data['user'] = user_authenticate
-        return data
-
-
-    
+        return data    
