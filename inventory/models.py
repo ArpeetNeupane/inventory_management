@@ -36,8 +36,18 @@ class Item(models.Model):
             self._generate_individual_codes(additional_quantity)
         elif self.itemQuantity < old_quantity:
             #removing excess codes if quantity decreased
-            excess_items = self.individual_items.filter(is_available=True).order_by('-itemCode')[old_quantity - self.itemQuantity:] #add exception for when is_available is false
-            excess_items.delete()
+            excess_quantity = old_quantity - self.itemQuantity
+
+            #materializing queryset into a list to avoid slicing issues with delete()
+            excess_items = list(
+                self.individual_items.filter(is_available=True)
+                .order_by('-itemCode')[:excess_quantity]
+            )
+            #here, if item code exists till RA60 and RA57 and RA58 aren't available, and 4 are deleted, RA 59, 60, 55, 56 are deleted.
+
+            #iterating over and deleting the excess items
+            for item in excess_items:
+                item.delete()
 
     def _generate_individual_codes(self, quantity):
         #extracting the first two letters of the itemName and converting them to uppercase to form a prefix for the unique code.
@@ -122,12 +132,13 @@ class Transaction(models.Model):
     paymentStatus = models.CharField(max_length=8, default='Pending') #paid or not paid/pending
      
     def save(self, *args, **kwargs):
-        #only calculate if transaction instance exists
-        if self.pk:
-            items = TransactionItem.objects.filter(transaction=self) #retrieving all the related TransactionItem objects
-            self.totalPrice = sum(item.quantity * item.price for item in items) #sum of quantity * price
-            self.finalPriceWithVat = ceil(1.13 * self.totalPrice) #ceil(ceiling) is a function of math library for rounding up
         super().save(*args, **kwargs)
+
+        items = TransactionItem.objects.filter(transaction=self) #retrieving all the related TransactionItem objects
+        self.totalPrice = sum(item.quantity * item.price for item in items) #sum of quantity * price
+        self.finalPriceWithVat = ceil(1.13 * self.totalPrice) #ceil(ceiling) is a function of math library for rounding up
+
+        super().save(update_fields=['totalPrice', 'finalPriceWithVat'])
     
     def __str__(self):
         return self.billNo
