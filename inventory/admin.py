@@ -14,7 +14,7 @@ class IndividualItemInline(admin.TabularInline):
     readonly_fields = ('itemCode',)
     extra = 0
     can_delete = False
-    max_num = 0  # Prevent adding through inline
+    max_num = 0  #prevent adding through inline
     show_change_link = True
 
 @admin.register(Item)
