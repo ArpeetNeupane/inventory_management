@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+    'drf_yasg',
     #local
     #'inventory',
     'accounts',
@@ -145,12 +146,28 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    "EXCEPTION_HANDLER": "inventory_management.exception.custom_exception_handler",
 }
 
 #timedelta is a class of python datetime module, and is used for performing arithmetics on time/date related variables
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=120),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=2),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
+
+TIME_ZONE = 'Asia/Katmandu'
+USE_TZ = True
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'JWT': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'JWT Authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+}

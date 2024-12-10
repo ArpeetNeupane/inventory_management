@@ -1,113 +1,104 @@
 from django.db.models.signals import post_delete, post_save
-from django.dispatch import receiver
-from django.db import transaction
-from math import ceil
-from .models import TransactionItem, Item, IndividualItem
 from django.db.models import Sum, F
+from django.db import transaction
+from django.db.utils import DatabaseError
+from django.dispatch import receiver
+from math import ceil
+from inventory.models import TransactionItem, Category, Item, Transaction
+# from inventory_management.utils import api_response
 
 ###here, instance is being used instead of self, as we're working with instance of Transcation and not of signal###
 @receiver([post_save, post_delete], sender=TransactionItem)
-def update_transaction(sender, instance, **kwargs):
-    with transaction.atomic(): #ensuring atomicity(so that all calculations are implemented at once and if error occurs, it's rolled back)
-        if hasattr(instance, 'transaction') and instance.transaction:
-            #first checking if the instance has attribute transaction, and secondly checking if the instance has a truthy value(meaning value exists and is not false, null,0 or an empty string)
-            transaction_instance = instance.transaction
+def update_transaction(sender, instance, created=None, **kwargs):
+    try:
+        with transaction.atomic(): #ensuring atomicity(so that all calculations are implemented at once and if error occurs, it's rolled back)
+            if hasattr(instance, 'transaction') and instance.transaction:
+                #first checking if the instance has attribute transaction, and secondly checking if the instance has a truthy value(meaning value exists and is not false, null, 0 or an empty string)
+                #hasattr is redundant remove later
+                transaction_instance = instance.transaction
 
-            related_items = TransactionItem.objects.filter(transaction=transaction_instance) #retreiving items that belong to current instance and is TransactionItems' object
+                ####This is another approach but has a bottleneck for large datasets; memory inefficient####
+                # related_items = TransactionItem.objects.filter(transaction=transaction_instance) #retreiving items that belong to current instance and is TransactionItems' object
+                # #keyword argument for filter is name of model field(in this case is the foreign key field) and value is value you're filtering by
+                # if related_items.exists():
+                #     #checking if any items exists in current instance
+                #     totalPrice = sum(item.quantity * item.price for item in related_items)
+                #     finalPriceWithVat = ceil(totalPrice * 1.13)
+                # else:
+                #     #if not, by default, 0
+                #     totalPrice = 0
+                #     finalPriceWithVat = 0
 
-            ####This is another approach but has a bottleneck for large datasets; memory inefficient####
+                #retreiving items that belong to current instance and is TransactionItems' object
+                #aggregating the total price directly in the database
+                result = TransactionItem.objects.filter(transaction=transaction_instance).aggregate(
+                    total_price=Sum(F('quantity') * F('price')) #F allows you to reference model field values directly in database queries
+                    #aggregate --> basically means that the multiplication happens efficiently at the database level, avoiding the need to load the entire dataset into memory and perform the operation in Python
+                )
+                
+                #extracting the total price from the result dictionary (defaulting to 0 if there's no result)
+                totalPrice = result['total_price'] or 0
+                
+                # Calculate the final price with VAT
+                finalPriceWithVat = ceil(totalPrice * 1.13)
 
-            # #keyword argument for filter is name of model field(in this case is the foreign key field) and value is value you're filtering by
-            # if related_items.exists():
-            #     #checking if any items exists in current instance
-            #     totalPrice = sum(item.quantity * item.price for item in related_items)
-            #     finalPriceWithVat = ceil(totalPrice * 1.13)
-            # else:
-            #     #if not, by default, 0
-            #     totalPrice = 0
-            #     finalPriceWithVat = 0
+                transaction_instance.totalPrice = totalPrice
+                transaction_instance.finalPriceWithVat = finalPriceWithVat
+                transaction_instance.save(update_fields=['totalPrice', 'finalPriceWithVat'])
 
-            #aggregating the total price directly in the database
-            result = related_items.aggregate(
-                total_price=Sum(F('quantity') * F('price')) #F allows you to reference model field values directly in database queries
-                #aggregate --> basically means that the multiplication happens efficiently at the database level, avoiding the need to load the entire dataset into memory and perform the operation in Python
-            )
+    except DatabaseError as db_error:
+        raise Exception(f"Error while updating transaction: {str(db_error)}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+@receiver([post_save, post_delete], sender=Item)
+def update_category_on_quantity_and_delete_individual_items(sender, instance, created=None, **kwargs): 
+    # created=None for handling both post_save and delete. For delete, it won't cause any problems by being none, and for save, it's automatically assigned
+    try:
+        with transaction.atomic():
+            # filtering items to be of the same category as of the current instance
+            filtered_items = Item.objects.filter(itemCategory=instance.itemCategory) 
+            # itemCategory=instance just doing this will cause a ValueError as itemCategory=instance means you're trying to filter by exact value the current instance has, e.g., "Raspberry Pi", instead of the category of said item
+            # summing at the database level
+            aggregated_result = filtered_items.aggregate(Sum('itemQuantity'))
+            # aggregate returns a dict, and total quantity is in key - itemQuantity__sum, but when filtering it could be empty so to handle None, else condition has a fallback to 0
+            total_quantity = aggregated_result['itemQuantity__sum'] if aggregated_result['itemQuantity__sum'] is not None else 0
+            # updating categoryQuantity to calculated quantity
+            Category.objects.filter(pk=instance.itemCategory.pk).update(categoryQuantity=total_quantity)
             
-            #extracting the total price from the result dictionary (defaulting to 0 if there's no result)
-            totalPrice = result['total_price'] or 0
+            if created is None:
+                instance.individual_items.all().delete()
+    except Exception as e:
+        raise Exception(f"Error while processing item update or deletion: {e}")
+
+#****sometimes working and sometimes not*****
+@receiver([post_save, post_delete], sender=TransactionItem)
+def update_available_quantity_from_transactionitem_change(sender, instance, created=None, **kwargs):
+    with transaction.atomic():
+        try:
+            #making sure category matches before updating
+            if instance.item.itemCategory != instance.category:
+                raise ValueError(f"Item category mismatch for: {instance.item.itemName}")
             
-            # Calculate the final price with VAT
-            finalPriceWithVat = ceil(totalPrice * 1.13)
+            if kwargs.get('signal') == post_save:
+                if created:  #if the TransactionItem is newly created, adding the quantity to the Item
+                    instance.item.itemQuantity += instance.quantity
+                else:  #if the TransactionItem is updated, getting the previous quantity before updating
+                    previous_quantity = instance.__class__.objects.get(pk=instance.pk).quantity
+                    instance.item.itemQuantity += instance.quantity - previous_quantity
 
-            transaction_instance.totalPrice = totalPrice
-            transaction_instance.finalPriceWithVat = finalPriceWithVat
-            transaction_instance.save(update_fields=['totalPrice', 'finalPriceWithVat'])
+            elif kwargs.get('signal') == post_delete:
+                #subtracting the quantity if a TransactionItem is deleted
+                instance.item.itemQuantity -= instance.quantity
 
-@receiver(post_save, sender=Item)
-def update_items(sender, instance, **kwargs):
-    pass
-
-# def save(self, *args, **kwargs):
-#         is_new = self.pk is None  #this checks if the pk attribute is None. If it is, the instance has not been
-#         #saved to the database yet, meaning it's a new instance.
+            instance.item.save()
+                
+        except Exception as e:
+            raise Exception(f"Error while updating item quantity from transactionitem: {e}")
         
-#         #if self.pk is none, the code below is triggered, else old_quantity doesn't exist hence it becomes 0, simple ternary operator
-#         #if old_quantity exists, fit queries the database to get the current itemQuantity of this item and flat=True makes sure its a list and not list of tuples
-#         #first() is used because i) if queryset is empty, returns none instead of exception so separate exception handeling is not needed
-#         #converts from queryset (which is iterable) to actual value. if get was used, have to have a separate exception handeling logic
-#         old_quantity = Item.objects.filter(pk=self.pk).values_list('itemQuantity', flat=True).first() if self.pk else 0
-#         #saving the main item
-#         super().save(*args, **kwargs)
-        
-#         if is_new:
-#             #generating codes for all new items
-#             self._generate_individual_codes(self.itemQuantity)
-#         elif self.itemQuantity > old_quantity:
-#             #generating additional codes if quantity increased
-#             additional_quantity = self.itemQuantity - old_quantity
-#             self._generate_individual_codes(additional_quantity)
-#         elif self.itemQuantity < old_quantity:
-#             #removing excess codes if quantity decreased
-#             excess_quantity = old_quantity - self.itemQuantity
-
-#             #materializing queryset into a list to avoid slicing issues with delete()
-#             excess_items = list(
-#                 self.individual_items.filter(is_available=True)
-#                 .order_by('-itemCode')[:excess_quantity]
-#             )
-#             #here, if item code exists till RA60 and RA57 and RA58 aren't available, and 4 are deleted, RA 59, 60, 55, 56 are deleted.
-
-#             #iterating over and deleting the excess items
-#             for item in excess_items:
-#                 item.delete()
-
-#     def _generate_individual_codes(self, quantity):
-#         #extracting the first two letters of the itemName and converting them to uppercase to form a prefix for the unique code.
-#         prefix = self.itemName[:2].upper() #:2 means taking 2 characters from start
-        
-#         #getting the last used number for this prefix
-#         last_item = IndividualItem.objects.filter(
-#             itemCode__startswith=prefix
-#         ).order_by('-itemCode').first() #checking from highest; descending order, and taking first value
-
-#         #if previous code doesn't exist, starts at 1
-#         start_number = 1
-#         if last_item:
-#             #if a previous code exists, extracting the last most number, converting to int and increasing by 1
-#             number_part = last_item.itemCode[2:] #2: means taking after 2 characters from start
-#             start_number = int(number_part) + 1
-
-#         #creating individual items with unique codes (in bulk if required)
-#         individual_items = []
-#         for i in range(quantity):
-#             number = start_number + i
-#             #using 4 digits for the number part (allowing up to 9999 items)
-#             item_code = f"{prefix}{number:04d}" #unique code syntax = prefix + 4 digit number. eg: if Raspberry Pi's 10th item, code = RA0010
-
-#             #creating individual_item object but not saving to database yet
-#             individual_items.append(IndividualItem(
-#                 item=self, #linking IndividualItem to the current Item instance
-#                 itemCode=item_code #assigning generated code
-#             ))
-#         #saving at bult to database (efficient)
-#         IndividualItem.objects.bulk_create(individual_items)
+@receiver(post_delete, sender=Transaction)
+def update_transaction_on_transactionitem_delete(sender, instance, **kwargs):
+    try:
+        instance.transactionitem_transaction.all().delete()
+    except Exception as e:
+        raise Exception(f"Couldn't delete: {e}")
