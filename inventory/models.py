@@ -5,6 +5,7 @@ class IndividualItem(models.Model):
     #default related name is individualitem_set
     itemCode = models.CharField(max_length=6, unique=True)
     is_available = models.BooleanField(default=True)  #to track if item is assigned/used
+    price = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return f"{self.item.itemName}"

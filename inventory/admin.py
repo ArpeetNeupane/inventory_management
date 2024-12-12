@@ -26,7 +26,7 @@ class ItemAdmin(admin.ModelAdmin):
 
 @admin.register(IndividualItem)
 class IndividualItemAdmin(admin.ModelAdmin):
-    list_display = ('itemCode', 'item', 'is_available')
+    list_display = ('itemCode', 'item', 'is_available', 'price')
     search_fields = ('itemCode', 'item__itemName')
     list_filter = ('is_available', 'item')
     readonly_fields = ('itemCode',)
