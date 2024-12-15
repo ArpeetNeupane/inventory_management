@@ -8,7 +8,7 @@ class IndividualItem(models.Model):
     price = models.PositiveIntegerField(default=0)
 
     def __str__(self):
-        return f"{self.item.itemName}"
+        return self.itemCode
 
 class Item(models.Model):
     itemName = models.CharField(max_length=30)
@@ -146,7 +146,13 @@ class Transaction(models.Model):
 class Project(models.Model):
     projectName = models.CharField(max_length=40)
     projectLeader = models.CharField(max_length=30)
-    items = models.ManyToManyField(Item)
     
     def __str__(self):
         return self.projectName
+    
+class ProjectItem(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='project_item_project')
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name='project_item')
+    quantity = models.PositiveIntegerField(default=1)
+    start_date = models.DateTimeField(auto_now_add=True)
+    individual_items = models.ManyToManyField(IndividualItem, blank=False, related_name='project_item_item_code')

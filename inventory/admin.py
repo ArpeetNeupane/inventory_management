@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import Item, IndividualItem, Category, Supplier, SupplierItem, Transaction, TransactionItem, Project
+from django.forms.widgets import Select
+from django.db.models import Q
+from .models import Item, IndividualItem, Category, Supplier, SupplierItem, Transaction, TransactionItem, Project, ProjectItem
 
 class SupplierItemInline(admin.TabularInline):
     model = SupplierItem
@@ -14,8 +16,13 @@ class IndividualItemInline(admin.TabularInline):
     readonly_fields = ('itemCode',)
     extra = 0
     can_delete = False
-    max_num = 0  #prevent adding through inline
+    max_num = 0  #preventing adding through inline
     show_change_link = True
+
+class ProjectItemInline(admin.TabularInline):
+    model = ProjectItem
+    extra = 1 #1 means show 1 more fields to add without clicking add another, 0 means none
+    autocomplete_fields = ['item','individual_items'] #shows dropdown
 
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
@@ -54,4 +61,15 @@ class TransactionAdmin(admin.ModelAdmin):
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ('projectName', 'projectLeader')
     search_fields = ('projectName', 'projectLeader')
-    filter_horizontal = ('items',)
+    inlines = [ProjectItemInline]
+
+@admin.register(ProjectItem)
+class ProjectItemAdmin(admin.ModelAdmin):
+    list_display = ('project', 'item', 'quantity', 'start_date')
+    search_fields = ('project__projectName', 'item__itemName')
+    list_filter = ('project', 'item')
+    readonly_fields = ('start_date',)
+    
+    def get_queryset(self, request):
+        #optimizing the queryset by selecting related fields
+        return super().get_queryset(request).select_related('project', 'item')
