@@ -2,7 +2,7 @@ from django.db import transaction
 from django.db import connection
 from django.db.models.signals import post_delete, post_save, pre_save, pre_delete, m2m_changed
 from django.db.models import Sum, F
-from django.db.utils import DatabaseError
+from django.db.utils import DatabaseError, IntegrityError
 from django.dispatch import receiver
 from math import ceil
 from inventory.models import TransactionItem, Category, Item, Transaction, SupplierItem, IndividualItem, Project, ProjectItem
@@ -212,7 +212,6 @@ def delete_transactionitems_when_transaction_delete(sender, instance, **kwargs):
 #if you use the regular approach for many to many field, it wont work as the ManyToManyField hasn’t been populated yet
 #and the reason for that is, first the project item object is saved then the many to many relationship in django
 #so we use m2m_changed signal to handle updates to many to many relationships
-#here, atomicity is handled by default
 @receiver(m2m_changed, sender=ProjectItem.individual_items.through) #sender here refers to the intermediate table that links ProjectItem and IndividualItem models.
 def validate_individual_items(sender, instance, action, reverse, model, pk_set, **kwargs):
     if action in ['post_add', 'post_remove']: #if action is called to m2m relationship before items are added, or after removing
@@ -223,47 +222,55 @@ def validate_individual_items(sender, instance, action, reverse, model, pk_set, 
 
                 #checking if the number of individual items matches the required quantity
                 if selected_count != instance.quantity:
+                    instance.refresh_from_db()
                     raise ValueError(
                         f"Number of individual items must exactly match the project quantity. "
                         f"Selected: {selected_count}, Exactly Required: {instance.quantity}"
                     )
 
         except ValueError as e:
-            raise Exception(f"str{e}")
+            raise Exception(f"{e}")
 
-#already unavailable borrow garna khojda exception
+#any 1 wrong ind item then exc, but if both wrong no exec
 @receiver([post_save, post_delete], sender=ProjectItem)
 def borrow_item_for_project(sender, instance, created=None, **kwargs):
-    print("Signal Triggered before try and atomicity")
     try:
         with transaction.atomic():
-            print("Signal Triggered after try and atomicity")
-            #triggered only if not delete, i.e.,created or updated
             if created is not None:
-                print("Inside created is not none")
-                #validating that all selected individual items belong to the chosen item
-                item_instance = instance.item 
+                item_instance = instance.item
 
-                if not all(individual_item.item == item_instance for individual_item in instance.individual_items.all()):
-                    raise ValueError("One or more individual items do not belong to the selected item.")
+                #validating that individual items belong to the selected item
+                if not all(
+                    individual_item.item == item_instance
+                    for individual_item in instance.individual_items.all()
+                ):
+                    instance.refresh_from_db()
+                    raise ValueError("Individual items do not match the selected item.")
 
-                #changing selected individual items to unavailable
-                try:
+                #updating individual items to unavailable
+                if instance.individual_items.is_available == True:
                     instance.individual_items.update(is_available=False)
-                except Exception as e:
-                    raise Exception(f"Couldn't update availability after creation or modification of Project Item: {e}")
-                print("below is_available=False")
-            
-            else:
-                #changing selected individual items to available if deleted
-                for individual_item in instance.individual_items.all():
-                    if individual_item.is_available == True:
-                        raise Exception(f"Cannot borrow {instance.item.itemName} as it is already being borrowed.")
-                    instance.individual_items.update(is_available=True)
-                print("below is_available=True")
+                else:
+                    raise Exception(f"Cannot borrow item {instance.individual_item.item.itemName} because it's already in use.")
 
+            else:
+                #updating individual items to available
+                if instance.individual_items.is_available == False:
+                    instance.individual_items.update(is_available=True)
+                else:
+                    raise Exception(f"Cannot update availability after deletion.")
+
+    except ValueError as e:
+        print(f"Validation error: {e}")
+        instance.refresh_from_db()
+        raise
+    except IntegrityError as e:
+        print(f"Database error: {e}")
+        raise
     except Exception as e:
-        raise Exception(f"Unknown Error: {e}")
+        print(f"Unexpected error: {e}")
+        raise
+
     
 @receiver(post_delete, sender=Project)
 def delete_projectitems_when_project_delete(sender, instance, **kwargs):
