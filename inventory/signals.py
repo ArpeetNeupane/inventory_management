@@ -212,53 +212,47 @@ def delete_transactionitems_when_transaction_delete(sender, instance, **kwargs):
 #if you use the regular approach for many to many field, it wont work as the ManyToManyField hasn’t been populated yet
 #and the reason for that is, first the project item object is saved then the many to many relationship in django
 #so we use m2m_changed signal to handle updates to many to many relationships
-@receiver(m2m_changed, sender=ProjectItem.individual_items.through) #sender here refers to the intermediate table that links ProjectItem and IndividualItem models.
-def validate_individual_items(sender, instance, action, reverse, model, pk_set, **kwargs):
+@receiver(m2m_changed, sender=ProjectItem.individual_items.through)
+def validate_individual_items(sender, instance, action, reverse, model, pk_set, **kwargs): #sender here refers to the intermediate table that links ProjectItem and IndividualItem models.
     if action in ['post_add', 'post_remove']: #if action is called to m2m relationship before items are added, or after removing
         try:
             with transaction.atomic():
-                selected_count = instance.individual_items.count()
-                print(selected_count)
+                selected_items = instance.individual_items.all()
 
-                #checking if the number of individual items matches the required quantity
-                if selected_count != instance.quantity:
-                    instance.refresh_from_db()
+                #validating the number of selected items
+                if selected_items.count() != instance.quantity:
                     raise ValueError(
-                        f"Number of individual items must exactly match the project quantity. "
-                        f"Selected: {selected_count}, Exactly Required: {instance.quantity}"
+                        f"The number of individual items ({selected_items.count()}) does not match the required quantity ({instance.quantity})."
                     )
 
-        except ValueError as e:
-            raise Exception(f"{e}")
+                #updating availability based on the action
+                if action == 'post_add':
+                    #marking added items as unavailable
+                    model.objects.filter(pk__in=pk_set).update(is_available=False)
+                elif action == 'post_remove':
+                    #marking removed items as available
+                    model.objects.filter(pk__in=pk_set).update(is_available=True)
 
-#any 1 wrong ind item then exc, but if both wrong no exec
-@receiver([post_save, post_delete], sender=ProjectItem)
-def borrow_item_for_project(sender, instance, created=None, **kwargs):
+        except Exception as e:
+            print(f"Error: {e}")
+            raise
+
+
+@receiver(post_save, sender=ProjectItem)
+def borrow_item_for_project(sender, instance, created, **kwargs):
     try:
         with transaction.atomic():
-            if created is not None:
-                item_instance = instance.item
+            #updating individual items to unavailable after borrowed for project
+            unavailable_items = [
+                individual_item for individual_item in instance.individual_items.all()
+                if not individual_item.is_available
+            ]
 
-                #validating that individual items belong to the selected item
-                if not all(
-                    individual_item.item == item_instance
-                    for individual_item in instance.individual_items.all()
-                ):
-                    instance.refresh_from_db()
-                    raise ValueError("Individual items do not match the selected item.")
-
-                #updating individual items to unavailable
-                if instance.individual_items.is_available == True:
-                    instance.individual_items.update(is_available=False)
-                else:
-                    raise Exception(f"Cannot borrow item {instance.individual_item.item.itemName} because it's already in use.")
-
-            else:
-                #updating individual items to available
-                if instance.individual_items.is_available == False:
-                    instance.individual_items.update(is_available=True)
-                else:
-                    raise Exception(f"Cannot update availability after deletion.")
+            if unavailable_items:
+                raise Exception(
+                    f"Cannot borrow item {instance.item.itemName} because one or more individual items are already in use."
+                )
+            instance.individual_items.all().update(is_available=False)
 
     except ValueError as e:
         print(f"Validation error: {e}")
@@ -271,6 +265,14 @@ def borrow_item_for_project(sender, instance, created=None, **kwargs):
         print(f"Unexpected error: {e}")
         raise
 
+@receiver(post_delete, sender=ProjectItem)
+def handle_deletion_of_projectitems(sender, instance, **kwargs):
+    try:
+        with transaction.atomic():
+            print("inside post_delete of projectitem")
+            instance.individual_items(is_available=True)
+    except Exception as e:
+        return Exception(f"Couldn't change availability after deletion of Project Item: {e}")
     
 @receiver(post_delete, sender=Project)
 def delete_projectitems_when_project_delete(sender, instance, **kwargs):
@@ -286,8 +288,12 @@ def delete_projectitems_when_project_delete(sender, instance, **kwargs):
                 )
                 individual_items_to_update.update(is_available=True)
             except Exception as e:
-                    raise Exception(f"Couldn't update availability after deletion of Project Item: {e}")
+                    raise Exception(f"Couldn't update availability after deletion of Project Item from Project: {e}")
             print("below is_available=True")
 
     except Exception as e:
         raise Exception(f"Couldn't delete Project Items when deleting Project: {e}")
+    
+########dont let inputted available quantity > itemQuantity == if done, available quantity = itemQuantity hudo rexa
+###what what items in a category
+#a item sold by what what suppliers
