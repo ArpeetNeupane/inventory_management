@@ -65,11 +65,11 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(ProjectItem)
 class ProjectItemAdmin(admin.ModelAdmin):
-    list_display = ('project', 'item', 'quantity', 'start_date')
+    list_display = ('associated_project', 'item', 'quantity', 'start_date')
     search_fields = ('project__projectName', 'item__itemName')
-    list_filter = ('project', 'item')
+    list_filter = ('associated_project', 'item')
     readonly_fields = ('start_date',)
     
     def get_queryset(self, request):
         #optimizing the queryset by selecting related fields
-        return super().get_queryset(request).select_related('project', 'item')
+        return super().get_queryset(request).select_related('associated_project', 'item')

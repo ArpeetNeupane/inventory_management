@@ -151,7 +151,7 @@ class Project(models.Model):
         return self.projectName
     
 class ProjectItem(models.Model):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='project_item_project')
+    associated_project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='project_item_project')
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name='project_item')
     quantity = models.PositiveIntegerField(default=1)
     start_date = models.DateTimeField(auto_now_add=True)

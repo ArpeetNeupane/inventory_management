@@ -23,15 +23,17 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ['id', 'categoryName', 'categoryQuantity']
 
-class SupplierSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Supplier
-        fields = ['id', 'supplierName', 'address', 'contactNo']
-
 class SupplierItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierItem
         fields = ['id', 'supplier', 'item', 'price', 'supply_date']
+
+class SupplierSerializer(serializers.ModelSerializer):
+    supplieritem_supplier = SupplierItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Supplier
+        fields = ['id', 'supplierName', 'address', 'contactNo', 'supplieritem_supplier']
 
 class TransactionItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,9 +47,16 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transaction
         fields = ['id', 'billNo', 'supplier', 'totalPrice', 'finalPriceWithVat', 'date', 'paymentStatus', 'transactionitem_transaction']
 
+class ProjectItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectItem
+        fields = ['id', 'associated_project', 'item', 'quantity', 'start_date', 'individual_items']
+
 class ProjectSerializer(serializers.ModelSerializer):
+    projectitem_project = ProjectItemSerializer(many=True, read_only=True)
+
     class Meta:
         model = Project
-        fields = ['id', 'projectName', 'projectLeader']
+        fields = ['id', 'projectName', 'projectLeader', 'projectitem_project']
 
 
