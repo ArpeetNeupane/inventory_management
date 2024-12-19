@@ -53,10 +53,10 @@ class ProjectItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'associated_project', 'item', 'quantity', 'start_date', 'individual_items']
 
 class ProjectSerializer(serializers.ModelSerializer):
-    projectitem_project = ProjectItemSerializer(many=True, read_only=True)
+    project_item_project = ProjectItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
-        fields = ['id', 'projectName', 'projectLeader', 'projectitem_project']
+        fields = ['id', 'projectName', 'projectLeader', 'project_item_project']
 
 
