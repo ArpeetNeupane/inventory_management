@@ -43,14 +43,16 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = ['id', 'supplierName', 'address', 'contactNo', 'supplieritem_supplier']
 
+    #create method is used to customize how data is saved to the database when handling a POST request
+    #need to override the create method to handle nested relationship such as supplieritem_supplier properly
     def create(self, validated_data):
-        # Extract supplier items from validated data
-        supplier_items_data = validated_data.pop('supplieritem_supplier', [])
+        #extracting supplier items from validated data, using key supplieritem_supplier
+        supplier_items_data = validated_data.pop('supplieritem_supplier', []) #[] --> default value if not found
         
-        # Create the supplier instance
-        supplier = Supplier.objects.create(**validated_data)
+        #creating the supplier instance
+        supplier = Supplier.objects.create(**validated_data) #** used to unpack dict
         
-        # Create SupplierItem instances for each entry in the supplieritem_supplier list
+        #creating SupplierItem instances for each entry in the supplieritem_supplier list
         for supplier_item_data in supplier_items_data:
             SupplierItem.objects.create(supplier=supplier, **supplier_item_data)
         
