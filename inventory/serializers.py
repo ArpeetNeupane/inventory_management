@@ -4,13 +4,13 @@ from inventory.models import *
 
 class ItemSerializer(serializers.ModelSerializer):
     #used to include custom properties or computed fields in the serialized output
-    available_quantity = SerializerMethodField()
+    available_quantity = serializers.SerializerMethodField()
 
     class Meta:
         model = Item
         fields = ['id', 'itemName', 'itemQuantity', 'itemCategory', 'available_quantity']
 
-    def available_quantity(self, obj):
+    def get_available_quantity(self, obj):
         return obj.available_quantity
 
 class IndividualItemSerializer(serializers.ModelSerializer):
@@ -23,6 +23,14 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ['id', 'categoryName', 'categoryQuantity']
 
+    def update(self, instance, validated_data):
+        #checking if categoryQuantity is being updated
+        if 'categoryQuantity' in validated_data:
+            raise serializers.ValidationError("categoryQuantity cannot be updated this way.")
+        
+        #if categoryQuantity is not being updated, continue with the regular update
+        return super().update(instance, validated_data)
+
 class SupplierItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierItem
@@ -34,6 +42,19 @@ class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier
         fields = ['id', 'supplierName', 'address', 'contactNo', 'supplieritem_supplier']
+
+    def create(self, validated_data):
+        # Extract supplier items from validated data
+        supplier_items_data = validated_data.pop('supplieritem_supplier', [])
+        
+        # Create the supplier instance
+        supplier = Supplier.objects.create(**validated_data)
+        
+        # Create SupplierItem instances for each entry in the supplieritem_supplier list
+        for supplier_item_data in supplier_items_data:
+            SupplierItem.objects.create(supplier=supplier, **supplier_item_data)
+        
+        return supplier
 
 class TransactionItemSerializer(serializers.ModelSerializer):
     class Meta:

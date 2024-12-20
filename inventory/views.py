@@ -7,6 +7,7 @@ from inventory.serializers import ItemSerializer, CategorySerializer, Individual
 from rest_framework import status
 from rest_framework.views import APIView
 
+#available q cant be greater than item exception
 class ItemAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
@@ -344,79 +345,6 @@ class IndividualItemAPIView(APIView):
                 is_success=False,
                 error_message="An error occurred while fetching individual item / item codes. Please try again later." + str(e),
                 status_code=status.HTTP_400_BAD_REQUEST,
-                result=None,
-            )
-
-    def post(self, request, *args, **kwargs):
-        try:
-            new_individual_item = request.data
-            new_individual_item_serializer = IndividualItemSerializer(data=new_individual_item)
-            if new_individual_item_serializer.is_valid():
-                new_individual_item_serializer.save()
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_201_CREATED,
-                    result=new_individual_item_serializer.data,
-                )
-            return api_response(
-                is_success=False,
-                error_message=new_individual_item_serializer.errors,
-                status_code=status.HTTP_400_BAD_REQUEST,
-                result=None,
-            )
-        
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message=str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                result=None,
-            )
-        
-    def put(self, request, *args, **kwargs):
-        try:
-            #getting id from url
-            individual_item_id = kwargs.get('id')
-
-            if not individual_item_id:
-                return api_response(
-                    is_success=False,
-                    error_message="An ID must be provided in the URL to update an individual item.",
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    result=None,
-                )
-            
-            existing_individual_item = IndividualItem.objects.get(id=individual_item_id)
-            updated_individual_item_serializer = IndividualItemSerializer(instance=existing_individual_item, data=request.data)
-            if updated_individual_item_serializer.is_valid():
-                updated_individual_item_serializer.save()
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_200_OK,
-                    result=updated_individual_item_serializer.data,
-                )
-            return api_response(
-                    is_success=False,
-                    error_message=updated_individual_item_serializer.errors,
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    result=None,
-                )
-
-        except IndividualItem.DoesNotExist:
-            return api_response(
-                is_success=False,
-                error_message="The individual item does not exist.",
-                status_code=status.HTTP_404_NOT_FOUND,
-                result=None,
-            )
-        
-        except Exception as e:
-            return api_response(
-                is_success=False,
-                error_message="An error occurred while updating the individual item. " + str(e),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 result=None,
             )
         

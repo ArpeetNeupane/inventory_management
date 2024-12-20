@@ -294,6 +294,6 @@ def delete_projectitems_when_project_delete(sender, instance, **kwargs):
     except Exception as e:
         raise Exception(f"Couldn't delete Project Items when deleting Project: {e}")
     
-########dont let inputted available quantity > itemQuantity == if done, available quantity = itemQuantity hudo rexa
+########dont let inputted available quantity > itemQuantity => if done, available quantity = itemQuantity hudo rexa, available quantity < itemQuantity pani hudo rainaxa
 ###what what items in a category
 #a item sold by what what suppliers

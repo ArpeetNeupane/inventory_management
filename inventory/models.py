@@ -98,7 +98,7 @@ class Item(models.Model):
 
 class Category(models.Model):
     categoryName = models.CharField(max_length=30, unique=True)
-    categoryQuantity = models.PositiveIntegerField(default=0, editable=False)
+    categoryQuantity = models.PositiveIntegerField(default=0)
     
     def __str__(self):
         return self.categoryName
