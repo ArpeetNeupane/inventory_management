@@ -37,7 +37,7 @@ class SupplierItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'supplier', 'item', 'price', 'supply_date']
 
 class SupplierSerializer(serializers.ModelSerializer):
-    supplieritem_supplier = SupplierItemSerializer(many=True, read_only=True)
+    supplieritem_supplier = SupplierItemSerializer(many=True)
 
     class Meta:
         model = Supplier
@@ -57,6 +57,36 @@ class SupplierSerializer(serializers.ModelSerializer):
             SupplierItem.objects.create(supplier=supplier, **supplier_item_data)
         
         return supplier
+    
+    def update(self, instance, validated_data):
+        #updating supplier fields
+        instance.supplierName = validated_data.get('supplierName', instance.supplierName)
+        instance.address = validated_data.get('address', instance.address)
+        instance.contactNo = validated_data.get('contactNo', instance.contactNo)
+        instance.save()
+
+        #handling supplier items
+        supplier_items_data = validated_data.get('supplieritem_supplier', [])
+        existing_items = {item.id: item for item in instance.supplieritem_supplier.all()}
+        
+        for item_data in supplier_items_data:
+            #removing supplier if it exists in the data
+            item_data.pop('supplier', None)
+            
+            item_id = item_data.get('id')
+            if item_id and item_id in existing_items:
+                #updating existing item
+                existing_item = existing_items[item_id]
+                for attr, value in item_data.items():
+                    if attr != 'id':  #skipping the update of ID field
+                        setattr(existing_item, attr, value)
+                existing_item.save()
+                existing_items.pop(item_id)
+            else:
+                #creating new item
+                SupplierItem.objects.create(supplier=instance, **item_data)
+
+        return instance
 
 class TransactionItemSerializer(serializers.ModelSerializer):
     class Meta:
