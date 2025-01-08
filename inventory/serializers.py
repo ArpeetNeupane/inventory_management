@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from rest_framework.serializers import SerializerMethodField
+from rest_framework.exceptions import ValidationError
 from inventory.models import *
+from django.shortcuts import get_object_or_404
 
 class ItemSerializer(serializers.ModelSerializer):
     #used to include custom properties or computed fields in the serialized output
@@ -34,57 +36,50 @@ class CategorySerializer(serializers.ModelSerializer):
 class SupplierItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierItem
-        fields = ['id', 'supplier', 'item', 'price', 'supply_date']
+        fields = ['id', 'supplier', 'item', 'price']
+        read_only_fields = ['id'] #preventing accidental updates to these fields
 
 class SupplierSerializer(serializers.ModelSerializer):
-    supplieritem_supplier = SupplierItemSerializer(many=True)
+    supplieritem_supplier = SupplierItemSerializer(many=True, required=False)
 
     class Meta:
         model = Supplier
         fields = ['id', 'supplierName', 'address', 'contactNo', 'supplieritem_supplier']
 
-    #create method is used to customize how data is saved to the database when handling a POST request
-    #need to override the create method to handle nested relationship such as supplieritem_supplier properly
     def create(self, validated_data):
-        #extracting supplier items from validated data, using key supplieritem_supplier
-        supplier_items_data = validated_data.pop('supplieritem_supplier', []) #[] --> default value if not found
-        
-        #creating the supplier instance
-        supplier = Supplier.objects.create(**validated_data) #** used to unpack dict
-        
-        #creating SupplierItem instances for each entry in the supplieritem_supplier list
+        supplier_items_data = validated_data.pop('supplieritem_supplier', []) #removing supplieritem_supplier from data validated through serialization and retrieving it
+        supplier = Supplier.objects.create(**validated_data) #creating a new supplier instance from remaining validated_data
+        #(**) unpacks the dictionary, passing its keys and values as keyword arguments
+
+        #creating SupplierItem instances only if supplier_items_data is not empty
         for supplier_item_data in supplier_items_data:
-            SupplierItem.objects.create(supplier=supplier, **supplier_item_data)
-        
+            SupplierItem.objects.create(supplier=supplier, **supplier_item_data) #supplier=supplier associating supplier item with previouly created supplier
+
         return supplier
     
     def update(self, instance, validated_data):
-        #updating supplier fields
+        # Update supplier fields
         instance.supplierName = validated_data.get('supplierName', instance.supplierName)
         instance.address = validated_data.get('address', instance.address)
         instance.contactNo = validated_data.get('contactNo', instance.contactNo)
         instance.save()
 
-        #handling supplier items
-        supplier_items_data = validated_data.get('supplieritem_supplier', [])
+        # Handle nested supplier items
+        supplier_items_data = validated_data.pop('supplieritem_supplier', [])
         existing_items = {item.id: item for item in instance.supplieritem_supplier.all()}
-        
+
         for item_data in supplier_items_data:
-            #removing supplier if it exists in the data
-            item_data.pop('supplier', None)
-            
-            item_id = item_data.get('id')
+            item_id = item_data.get('id')  # DRF ensures IDs are integers
             if item_id and item_id in existing_items:
-                #updating existing item
-                existing_item = existing_items[item_id]
+                # Update existing SupplierItem
+                supplier_item = existing_items.pop(item_id)
                 for attr, value in item_data.items():
-                    if attr != 'id':  #skipping the update of ID field
-                        setattr(existing_item, attr, value)
-                existing_item.save()
-                existing_items.pop(item_id)
-            else:
-                #creating new item
-                SupplierItem.objects.create(supplier=instance, **item_data)
+                    if attr != 'id':  # Skip ID field
+                        setattr(supplier_item, attr, value)
+                supplier_item.save()
+            elif not item_data.get('id'):  # If no ID, treat as new
+                item_data['supplier'] = instance
+                SupplierItem.objects.create(**item_data)
 
         return instance
 

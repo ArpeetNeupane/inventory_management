@@ -1,4 +1,4 @@
-from django.shortcuts import HttpResponse
+from django.shortcuts import get_object_or_404
 from inventory_management.utils import api_response
 
 from inventory.models import Item, Category, IndividualItem, Supplier, Transaction, Project
@@ -390,37 +390,36 @@ class IndividualItemAPIView(APIView):
 class SupplierAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
-            if 'id' in kwargs:
-                supplier = Supplier.objects.get(id=kwargs['id'])
+            supplier_id = kwargs.get('id')  #getting supplier ID from the URL if provided
+
+            if supplier_id:
+                #fetching the specific supplier and include its items
+                supplier = get_object_or_404(Supplier, id=supplier_id)
                 supplier_serializer = SupplierSerializer(supplier)
                 return api_response(
                     is_success=True,
                     error_message=None,
                     status_code=status.HTTP_200_OK,
-                    result = supplier_serializer.data,
+                    result=supplier_serializer.data,
                 )
             else:
+                #fetching all suppliers, exclude their items
                 suppliers = Supplier.objects.all()
                 supplier_serializer = SupplierSerializer(suppliers, many=True)
+                for supplier_data in supplier_serializer.data:
+                    supplier_data.pop('supplieritem_supplier', None)  #excluding items in list view
+
                 return api_response(
                     is_success=True,
                     error_message=None,
                     status_code=status.HTTP_200_OK,
-                    result = supplier_serializer.data,
+                    result=supplier_serializer.data,
                 )
-            
-        except Supplier.DoesNotExist:
-            return api_response(
-                is_success=False,
-                error_message="The supplier does not exist.",
-                status_code=status.HTTP_404_NOT_FOUND,
-                result=None,
-            )
-        
+
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message="An error occurred while fetching suppliers. Please try again later." + str(e),
+                error_message="An error occurred while fetching suppliers. " + str(e),
                 status_code=status.HTTP_400_BAD_REQUEST,
                 result=None,
             )
