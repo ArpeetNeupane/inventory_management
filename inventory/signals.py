@@ -8,6 +8,8 @@ from math import ceil
 from inventory.models import TransactionItem, Category, Item, Transaction, SupplierItem, IndividualItem, Project, ProjectItem
 # from inventory_management.utils import api_response
 
+#*****project available item ayto assign avialable ones****
+
 #capturing old quantity of TransactionItem
 @receiver(pre_save, sender=TransactionItem)
 def capture_original_quantities(sender, instance, **kwargs):
@@ -28,144 +30,242 @@ def capture_original_quantities(sender, instance, **kwargs):
         except Exception as e:
             instance._original_quantities = {}
 
-###here, instance is being used instead of self, as we're working with instance of Transcation and not of signal###
 @receiver([post_save, post_delete], sender=TransactionItem)
 def update_transaction(sender, instance, created=None, **kwargs):
-    try:
-        with transaction.atomic(): #ensuring atomicity(so that all calculations are implemented at once and if error occurs, it's rolled back)
-            if hasattr(instance, 'transaction') and instance.transaction:
-                #first checking if the instance has attribute transaction, and secondly checking if the instance has a truthy value(meaning value exists and is not false, null, 0 or an empty string)
-                #hasattr is redundant remove later
-                transaction_instance = instance.transaction
+    def update_transaction_totals():
+        if not hasattr(instance, 'transaction') or not instance.transaction:
+            return
+            
+        transaction_instance = instance.transaction
+        
+        result = TransactionItem.objects.filter(transaction=transaction_instance).aggregate(
+            total_price=Sum(F('quantity') * F('price'))
+        )
+        
+        total_price = result['total_price'] or 0
+        final_price_with_vat = ceil(total_price * 1.13)
 
-                ####This is another approach but has a bottleneck for large datasets; memory inefficient####
-                # related_items = TransactionItem.objects.filter(transaction=transaction_instance) #retreiving items that belong to current instance and is TransactionItems' object
-                # #keyword argument for filter is name of model field(in this case is the foreign key field) and value is value you're filtering by
-                # if related_items.exists():
-                #     #checking if any items exists in current instance
-                #     totalPrice = sum(item.quantity * item.price for item in related_items)
-                #     finalPriceWithVat = ceil(totalPrice * 1.13)
-                # else:
-                #     #if not, by default, 0
-                #     totalPrice = 0
-                #     finalPriceWithVat = 0
+        transaction_instance.totalPrice = total_price
+        transaction_instance.finalPriceWithVat = final_price_with_vat
+        transaction_instance.save(update_fields=['totalPrice', 'finalPriceWithVat'])
 
-                #retreiving items that belong to current instance and is TransactionItems' object
-                #aggregating the total price directly in the database
-                result = TransactionItem.objects.filter(transaction=transaction_instance).aggregate(
-                    total_price=Sum(F('quantity') * F('price')) #F allows you to reference model field values directly in database queries
-                    #aggregate --> basically means that the multiplication happens efficiently at the database level, avoiding the need to load the entire dataset into memory and perform the operation in Python
-                )
-                
-                #extracting the total price from the result dictionary (defaulting to 0 if there's no result)
-                totalPrice = result['total_price'] or 0
-                
-                # Calculate the final price with VAT
-                finalPriceWithVat = ceil(totalPrice * 1.13)
-
-                transaction_instance.totalPrice = totalPrice
-                transaction_instance.finalPriceWithVat = finalPriceWithVat
-                transaction_instance.save(update_fields=['totalPrice', 'finalPriceWithVat'])
-
-    except DatabaseError as db_error:
-        raise Exception(f"Error while updating transaction: {str(db_error)}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
+    def validate_transaction_item():
+        # Category validation
+        if instance.item.itemCategory != instance.category:
+            raise ValueError(f"Item category mismatch for: {instance.item.itemName}")
+        
+        # Supplier validation
+        transaction_supplier = instance.transaction.supplier
+        is_supplied = SupplierItem.objects.filter(
+            supplier=transaction_supplier, 
+            item=instance.item
+        ).exists()
+        
+        if not is_supplied:
+            raise ValueError(f"{transaction_supplier.supplierName} doesn't supply the item {instance.item.itemName}")
+        
+        # Price validation
+        price_of_supplied_item = SupplierItem.objects.filter(
+            supplier=transaction_supplier,
+            item=instance.item
+        ).first()
+        
+        if instance.price != price_of_supplied_item.price:
+            raise ValueError(f"Item price mismatch for: {instance.item.itemName}")
 
     try:
         with transaction.atomic():
-                #making sure category matches before updating
-                if instance.item.itemCategory != instance.category:
-                    raise ValueError(f"Item category mismatch for: {instance.item.itemName}")
-                
-                #making sure current item being added to transaction item with said supplier supplies the item, if not, exception raised
-                
-                #first, getting the supplier of the transaction
-                transaction_supplier = instance.transaction.supplier
-
-                is_supplied = SupplierItem.objects.filter(
-                    supplier=transaction_supplier, 
-                    item=instance.item
-                ).exists()
-
-                if not is_supplied:
-                    raise Exception(f"{transaction_supplier.supplierName} doesn't supply the item {instance.item.itemName}.")
-                
-                #making sure the item that the supplier sells is set to correct price by the user
-                price_of_supplied_item = SupplierItem.objects.filter(
-                    supplier = transaction_supplier,
-                    item = instance.item
-                ).first()
-                
-                if instance.price != price_of_supplied_item.price:
-                    raise ValueError(f"Item price mismatch for: {instance.item.itemName}")
-                
-                transaction_items = TransactionItem.objects.filter(transaction=instance.transaction)
-
-                if kwargs.get('signal') == post_save:   
-                    if created:  #if the TransactionItem is newly created, adding the quantity to the Item
-                        print("Newly Created!")
-
-                        #updating quantity
-                        instance.item.itemQuantity += instance.quantity
-                        instance.item.save()
-
-                        #updating prices according to inputted price during TransactionItem creation
-                        #filtering all individual items for this item, which matches the instance and is_available
-                        individual_items = IndividualItem.objects.filter(
-                            item=instance.item, 
-                            is_available=True
-                        ).order_by('itemCode')[:instance.quantity] #slicing to only the number of quantity the same as when creating TransactionItem so as to not overload
-                        
-                        #updating prices for these individual items
-                        try:
-                            for ind_item in individual_items:
-                                ind_item.price = instance.price
-                                ind_item.save(update_fields=['price'])
-                        
-                        except Exception as e:
-                            print(f"Error updating individual item prices: {e}")
-
-                    else:  #if the TransactionItem is updated, getting the previous quantity before updating
-                        print("Not Newly Created but updated!")
-                        #first, getting original quantity from pre_save
-                        original_quantities = getattr(instance, '_original_quantities', {}) #default is {} if no value
-
-                        for trans_item in transaction_items:
-                        #if item is being updated, calculate quantity difference
-                            if trans_item.pk == instance.pk:
-                                original_quantity = original_quantities.get(trans_item.pk, trans_item.quantity)
-                                #get(trans_item.pk, trans_item.quantity) 
-                                quantity_diff = instance.quantity - original_quantity
-                                
-                                #updating quantity
-                                trans_item.item.itemQuantity += quantity_diff
-                                trans_item.item.save()
-
-                                #updating prices according to inputted price during TransactionItem creation
-                                #filtering all individual items for this item, which matches the instance and is_available
-                                individual_items = IndividualItem.objects.filter(
-                                    item=trans_item.item, 
-                                    is_available=True
-                                ).order_by('itemCode')[:instance.quantity]
-                                
-                                #updating prices for these individual items
-                                for ind_item in individual_items:
-                                    ind_item.price = instance.price
-                                    ind_item.save(update_fields=['price'])
-                            
-                            else:
-                                print("Wrong Instance")
-
-                elif kwargs.get('signal') == post_delete:
-                    print("Newly Deleted!")
-                    #subtracting the quantity if a TransactionItem is deleted
-                        
-                    instance.item.itemQuantity -= instance.quantity
+            # First validate the transaction item
+            validate_transaction_item()
+            
+            # Then handle quantity updates and price changes
+            if kwargs.get('signal') == post_save:
+                if created:
+                    instance.item.itemQuantity += instance.quantity
                     instance.item.save()
-                
+                    
+                    individual_items = IndividualItem.objects.filter(
+                        item=instance.item, 
+                        is_available=True
+                    ).order_by('itemCode')[:instance.quantity]
+                    
+                    for ind_item in individual_items:
+                        ind_item.price = instance.price
+                        ind_item.save(update_fields=['price'])
+                else:
+                    original_quantities = getattr(instance, '_original_quantities', {})
+                    original_quantity = original_quantities.get(instance.pk, instance.quantity)
+                    quantity_diff = instance.quantity - original_quantity
+                    
+                    instance.item.itemQuantity += quantity_diff
+                    instance.item.save()
+                    
+                    individual_items = IndividualItem.objects.filter(
+                        item=instance.item, 
+                        is_available=True
+                    ).order_by('itemCode')[:instance.quantity]
+                    
+                    for ind_item in individual_items:
+                        ind_item.price = instance.price
+                        ind_item.save(update_fields=['price'])
+            
+            elif kwargs.get('signal') == post_delete:
+                instance.item.itemQuantity -= instance.quantity
+                instance.item.save()
+
+            # Finally update transaction totals
+            update_transaction_totals()
+            
+    except ValueError as ve:
+        # Handle validation errors
+        raise Exception(f"Validation error: {str(ve)}")
+    except DatabaseError as de:
+        # Handle database-specific errors
+        raise Exception(f"Database error: {str(de)}")
     except Exception as e:
-        raise Exception(f"Error while updating item quantity from transactionitem: {e}")
+        # Handle unexpected errors
+        raise Exception(f"Unexpected error: {str(e)}")
+
+# ###here, instance is being used instead of self, as we're working with instance of Transcation and not of signal###
+# @receiver([post_save, post_delete], sender=TransactionItem)
+# def update_transaction(sender, instance, created=None, **kwargs):
+#     try:
+#         with transaction.atomic(): #ensuring atomicity(so that all calculations are implemented at once and if error occurs, it's rolled back)
+#             if hasattr(instance, 'transaction') and instance.transaction:
+#                 #first checking if the instance has attribute transaction, and secondly checking if the instance has a truthy value(meaning value exists and is not false, null, 0 or an empty string)
+#                 #hasattr is redundant remove later
+#                 transaction_instance = instance.transaction
+
+#                 ####This is another approach but has a bottleneck for large datasets; memory inefficient####
+#                 # related_items = TransactionItem.objects.filter(transaction=transaction_instance) #retreiving items that belong to current instance and is TransactionItems' object
+#                 # #keyword argument for filter is name of model field(in this case is the foreign key field) and value is value you're filtering by
+#                 # if related_items.exists():
+#                 #     #checking if any items exists in current instance
+#                 #     totalPrice = sum(item.quantity * item.price for item in related_items)
+#                 #     finalPriceWithVat = ceil(totalPrice * 1.13)
+#                 # else:
+#                 #     #if not, by default, 0
+#                 #     totalPrice = 0
+#                 #     finalPriceWithVat = 0
+
+#                 #retreiving items that belong to current instance and is TransactionItems' object
+#                 #aggregating the total price directly in the database
+#                 result = TransactionItem.objects.filter(transaction=transaction_instance).aggregate(
+#                     total_price=Sum(F('quantity') * F('price')) #F allows you to reference model field values directly in database queries
+#                     #aggregate --> basically means that the multiplication happens efficiently at the database level, avoiding the need to load the entire dataset into memory and perform the operation in Python
+#                 )
+                
+#                 #extracting the total price from the result dictionary (defaulting to 0 if there's no result)
+#                 totalPrice = result['total_price'] or 0
+                
+#                 # Calculate the final price with VAT
+#                 finalPriceWithVat = ceil(totalPrice * 1.13)
+
+#                 transaction_instance.totalPrice = totalPrice
+#                 transaction_instance.finalPriceWithVat = finalPriceWithVat
+#                 transaction_instance.save(update_fields=['totalPrice', 'finalPriceWithVat'])
+
+#     except DatabaseError as db_error:
+#         raise Exception(f"Error while updating transaction: {str(db_error)}")
+#     except Exception as e:
+#         print(f"Unexpected error: {e}")
+
+#     try:
+#         with transaction.atomic():
+#             #making sure category matches before updating
+#             if instance.item.itemCategory != instance.category:
+#                 raise ValueError(f"Item category mismatch for: {instance.item.itemName}")
+            
+#             #making sure current item being added to transaction item with said supplier supplies the item, if not, exception raised
+            
+#             #first, getting the supplier of the transaction
+#             transaction_supplier = instance.transaction.supplier
+
+#             is_supplied = SupplierItem.objects.filter(
+#                 supplier=transaction_supplier, 
+#                 item=instance.item
+#             ).exists()
+
+#             if not is_supplied:
+#                 raise Exception(f"{transaction_supplier.supplierName} doesn't supply the item {instance.item.itemName}.")
+            
+#             #making sure the item that the supplier sells is set to correct price by the user
+#             price_of_supplied_item = SupplierItem.objects.filter(
+#                 supplier = transaction_supplier,
+#                 item = instance.item
+#             ).first()
+            
+#             if instance.price != price_of_supplied_item.price:
+#                 transaction.set_rollback(True)
+#                 raise ValueError(f"Item price mismatch for: {instance.item.itemName}")
+            
+#             transaction_items = TransactionItem.objects.filter(transaction=instance.transaction)
+
+#             if kwargs.get('signal') == post_save:   
+#                 if created:  #if the TransactionItem is newly created, adding the quantity to the Item
+#                     print("Newly Created!")
+
+#                     #updating quantity
+#                     instance.item.itemQuantity += instance.quantity
+#                     instance.item.save()
+
+#                     #updating prices according to inputted price during TransactionItem creation
+#                     #filtering all individual items for this item, which matches the instance and is_available
+#                     individual_items = IndividualItem.objects.filter(
+#                         item=instance.item, 
+#                         is_available=True
+#                     ).order_by('itemCode')[:instance.quantity] #slicing to only the number of quantity the same as when creating TransactionItem so as to not overload
+                    
+#                     #updating prices for these individual items
+#                     try:
+#                         for ind_item in individual_items:
+#                             ind_item.price = instance.price
+#                             ind_item.save(update_fields=['price'])
+                    
+#                     except Exception as e:
+#                         print(f"Error updating individual item prices: {e}")
+
+#                 else:  #if the TransactionItem is updated, getting the previous quantity before updating
+#                     print("Not Newly Created but updated!")
+#                     #first, getting original quantity from pre_save
+#                     original_quantities = getattr(instance, '_original_quantities', {}) #default is {} if no value
+
+#                     for trans_item in transaction_items:
+#                     #if item is being updated, calculate quantity difference
+#                         if trans_item.pk == instance.pk:
+#                             original_quantity = original_quantities.get(trans_item.pk, trans_item.quantity)
+#                             #get(trans_item.pk, trans_item.quantity) 
+#                             quantity_diff = instance.quantity - original_quantity
+                            
+#                             #updating quantity
+#                             trans_item.item.itemQuantity += quantity_diff
+#                             trans_item.item.save()
+
+#                             #updating prices according to inputted price during TransactionItem creation
+#                             #filtering all individual items for this item, which matches the instance and is_available
+#                             individual_items = IndividualItem.objects.filter(
+#                                 item=trans_item.item, 
+#                                 is_available=True
+#                             ).order_by('itemCode')[:instance.quantity]
+                            
+#                             #updating prices for these individual items
+#                             for ind_item in individual_items:
+#                                 ind_item.price = instance.price
+#                                 ind_item.save(update_fields=['price'])
+                        
+#                         else:
+#                             print("Wrong Instance")
+
+#             elif kwargs.get('signal') == post_delete:
+#                 print("Newly Deleted!")
+#                 #subtracting the quantity if a TransactionItem is deleted
+                    
+#                 instance.item.itemQuantity -= instance.quantity
+#                 instance.item.save()
+                
+#     except Exception as e:
+#         transaction.set_rollback(True)
+#         raise Exception(f"Error while updating item quantity from transactionitem: {e}")
 
 @receiver([post_save, post_delete], sender=Item)
 def update_category_on_quantity_and_delete_individual_items(sender, instance, created=None, **kwargs): 
@@ -235,8 +335,7 @@ def validate_individual_items(sender, instance, action, reverse, model, pk_set, 
 
         except Exception as e:
             print(f"Error: {e}")
-            raise
-
+            raise e
 
 @receiver(post_save, sender=ProjectItem)
 def borrow_item_for_project(sender, instance, created, **kwargs):
@@ -297,3 +396,5 @@ def delete_projectitems_when_project_delete(sender, instance, **kwargs):
 ########dont let inputted available quantity > itemQuantity => if done, available quantity = itemQuantity hudo rexa, available quantity < itemQuantity pani hudo rainaxa
 ###what what items in a category
 #a item sold by what what suppliers
+
+#*******dont let a supplier sell the same item for different prices - exception***********
