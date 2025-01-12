@@ -1,14 +1,14 @@
 from django.contrib import admin
 from django.forms.widgets import Select
 from django.db.models import Q
-from .models import Item, IndividualItem, Category, Supplier, SupplierItem, Transaction, TransactionItem, Project, ProjectItem
+from .models import *
 
 class SupplierItemInline(admin.TabularInline):
     model = SupplierItem
     extra = 1
 
-class TransactionItemInline(admin.TabularInline):
-    model = TransactionItem
+class PurchaseItemInline(admin.TabularInline):
+    model = PurchaseItem
     extra = 1
 
 class IndividualItemInline(admin.TabularInline):
@@ -22,7 +22,8 @@ class IndividualItemInline(admin.TabularInline):
 class ProjectItemInline(admin.TabularInline):
     model = ProjectItem
     extra = 1 #1 means show 1 more fields to add without clicking add another, 0 means none
-    autocomplete_fields = ['item','individual_items'] #shows dropdown
+    autocomplete_fields = ['item'] #shows dropdown
+    exclude = ['individual_items']
 
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
@@ -49,13 +50,13 @@ class SupplierAdmin(admin.ModelAdmin):
     search_fields = ('supplierName',)
     inlines = [SupplierItemInline]
 
-@admin.register(Transaction)
-class TransactionAdmin(admin.ModelAdmin):
+@admin.register(Purchase)
+class PurchaseAdmin(admin.ModelAdmin):
     list_display = ('billNo', 'supplier', 'totalPrice', 'finalPriceWithVat', 'date', 'paymentStatus')
     search_fields = ('billNo', 'supplier__supplierName')
     list_filter = ('date', 'supplier', 'paymentStatus')
     readonly_fields = ('totalPrice', 'finalPriceWithVat')
-    inlines = [TransactionItemInline]
+    inlines = [PurchaseItemInline]
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):

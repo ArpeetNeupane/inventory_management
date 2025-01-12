@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from inventory_management.utils import api_response
 
-from inventory.models import Item, Category, IndividualItem, Supplier, SupplierItem, Transaction, Project
+from inventory.models import *
 from inventory.serializers import *
 
 from rest_framework import status
@@ -11,25 +11,14 @@ from rest_framework.views import APIView
 class ItemAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
-            if 'id' in kwargs:
-                item = Item.objects.get(id=kwargs['id'])
-                item_serializer = ItemSerializer(item)
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_200_OK,
-                    result = item_serializer.data,
-                )
-
-            else:
-                items = Item.objects.all()
-                item_serializer = ItemSerializer(items, many=True)
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_200_OK,
-                    result = item_serializer.data,
-                )
+            items = Item.objects.all()
+            item_serializer = ItemSerializer(items, many=True)
+            return api_response(
+                is_success=True,
+                error_message=None,
+                status_code=status.HTTP_200_OK,
+                result = item_serializer.data,
+            )
             
         except Item.DoesNotExist:
             return api_response(
@@ -76,13 +65,12 @@ class ItemAPIView(APIView):
         
     def put(self, request, *args, **kwargs):
         try:
-            #getting id from url
-            item_id = kwargs.get('id')
+            item_id = request.data.get('id')
 
             if not item_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided in the URL to update an item.",
+                    error_message="An ID must be provided to update an item.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None,
                 )
@@ -122,13 +110,12 @@ class ItemAPIView(APIView):
         
     def delete(self, request, *args, **kwargs):
         try:
-            #getting item id from url
-            item_id = kwargs.get('id')
+            item_id = request.data.get('id')
 
             if not item_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided in the url to delete an item.",
+                    error_message="An ID must be provided to delete an item.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None
                 )
@@ -162,25 +149,14 @@ class ItemAPIView(APIView):
 class CategoryAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
-            if 'id' in kwargs:
-                category = Category.objects.get(id=kwargs['id'])
-                category_serializer = CategorySerializer(category)
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_200_OK,
-                    result=category_serializer.data,
-                )
-                
-            else:
-                categories = Category.objects.all()
-                category_serializer = CategorySerializer(categories, many=True)
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_200_OK,
-                    result=category_serializer.data,
-                )
+            categories = Category.objects.all()
+            category_serializer = CategorySerializer(categories, many=True)
+            return api_response(
+                is_success=True,
+                error_message=None,
+                status_code=status.HTTP_200_OK,
+                result=category_serializer.data,
+            )
             
         except Category.DoesNotExist:
             return api_response(
@@ -227,13 +203,12 @@ class CategoryAPIView(APIView):
         
     def put(self, request, *args, **kwargs):
         try:
-            #getting id from url
-            category_id = kwargs.get('id')
+            category_id = request.data.get('id')
 
             if not category_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided in the URL to update a category.",
+                    error_message="An ID must be provided update a category.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None,
                 )
@@ -273,13 +248,12 @@ class CategoryAPIView(APIView):
         
     def delete(self, request, *args, **kwargs):
         try:
-            #getting category id from url
-            category_id = kwargs.get('id')
+            category_id = request.data.get('id')
 
             if not category_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided in the url to delete a category.",
+                    error_message="An ID must be provided to delete a category.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None
                 )
@@ -313,24 +287,14 @@ class CategoryAPIView(APIView):
 class IndividualItemAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
-            if 'id' in kwargs:
-                individual_item = IndividualItem.objects.get(id=kwargs['id'])
-                individual_item_serializer = IndividualItemSerializer(individual_item)
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_200_OK,
-                    result = individual_item_serializer.data,
-                )
-            else:
-                individual_items = IndividualItem.objects.all()
-                individual_item_serializer = IndividualItemSerializer(individual_items, many=True)
-                return api_response(
-                    is_success=True,
-                    error_message=None,
-                    status_code=status.HTTP_200_OK,
-                    result = individual_item_serializer.data,
-                )
+            individual_items = IndividualItem.objects.all()
+            individual_item_serializer = IndividualItemSerializer(individual_items, many=True)
+            return api_response(
+                is_success=True,
+                error_message=None,
+                status_code=status.HTTP_200_OK,
+                result = individual_item_serializer.data,
+            )
             
         except IndividualItem.DoesNotExist:
             return api_response(
@@ -350,13 +314,12 @@ class IndividualItemAPIView(APIView):
         
     def delete(self, request, *args, **kwargs):
         try:
-            #getting item id from url
-            individual_item_id = kwargs.get('id')
+            individual_item_id = request.data.get('id')
 
             if not individual_item_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided in the url to delete an individual item.",
+                    error_message="An ID must be provided to delete an individual item.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None
                 )
@@ -526,6 +489,14 @@ class SupplierItemAPIView(APIView):
         try:
             supplier_id = kwargs.get('id')  #getting supplier ID from the URL if provided
 
+            if not supplier_id:
+                return api_response(
+                    is_success=False,
+                    error_message="An ID must be provided in the url to view supplier items.",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    result=None
+                )
+
             #fetching the specific supplier items excluding supplier details
             supplier = get_object_or_404(Supplier, id=supplier_id)
             supplier_item = supplier.supplieritem_supplier.all()
@@ -548,7 +519,7 @@ class SupplierItemAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            supplier_id = kwargs.get('id')
+            supplier_id = request.data
 
             supplier_foreign_key = request.data.get('supplier')
             if int(supplier_foreign_key) != int(supplier_id):
@@ -662,26 +633,26 @@ class SupplierItemAPIView(APIView):
                 result=None,
             )
 
-class TransactionAPIView(APIView):
+class PurchaseAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
-            #fetching all transaction, excluding their items
-            transaction = Transaction.objects.all()
-            transaction_serializer = TransactionSerializer(transaction, many=True)
-            for supplier_data in transaction_serializer.data:
-                supplier_data.pop('transactionitem_transaction', None)  #excluding items in list view
+            #fetching all purchase, excluding their items
+            purchase = Purchase.objects.all()
+            purchase_serializer = PurchaseSerializer(purchase, many=True)
+            for supplier_data in purchase_serializer.data:
+                supplier_data.pop('purchaseitem_purchase', None)  #excluding items in list view
 
             return api_response(
                 is_success=True,
                 error_message=None,
                 status_code=status.HTTP_200_OK,
-                result=transaction_serializer.data,
+                result=purchase_serializer.data,
             )
             
-        except Transaction.DoesNotExist:
+        except Purchase.DoesNotExist:
             return api_response(
                 is_success=False,
-                error_message="The transaction does not exist.",
+                error_message="The purchase does not exist.",
                 status_code=status.HTTP_404_NOT_FOUND,
                 result=None,
             )
@@ -689,26 +660,26 @@ class TransactionAPIView(APIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message="An error occurred while fetching transactions. Please try again later." + str(e),
+                error_message="An error occurred while fetching purchases. Please try again later." + str(e),
                 status_code=status.HTTP_400_BAD_REQUEST,
                 result=None,
             )
 
     def post(self, request, *args, **kwargs):
         try:
-            new_transaction = request.data
-            new_transaction_serializer = TransactionSerializer(data=new_transaction)
-            if new_transaction_serializer.is_valid():
-                new_transaction_serializer.save()
+            new_purchase = request.data
+            new_purchase_serializer = PurchaseSerializer(data=new_purchase)
+            if new_purchase_serializer.is_valid():
+                new_purchase_serializer.save()
                 return api_response(
                     is_success=True,
                     error_message=None,
                     status_code=status.HTTP_201_CREATED,
-                    result=new_transaction_serializer.data,
+                    result=new_purchase_serializer.data,
                 )
             return api_response(
                 is_success=False,
-                error_message=new_transaction_serializer.errors,
+                error_message=new_purchase_serializer.errors,
                 status_code=status.HTTP_400_BAD_REQUEST,
                 result=None,
             )
@@ -723,37 +694,37 @@ class TransactionAPIView(APIView):
         
     def put(self, request, *args, **kwargs):
         try:
-            transaction_id = request.data.get('id')
+            purchase_id = request.data.get('id')
 
-            if not transaction_id:
+            if not purchase_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided to update a transaction.",
+                    error_message="An ID must be provided to update a purchase.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None,
                 )
             
-            existing_transaction = Transaction.objects.get(id=transaction_id)
-            updated_transaction_serializer = TransactionSerializer(instance=existing_transaction, data=request.data)
-            if updated_transaction_serializer.is_valid():
-                updated_transaction_serializer.save()
+            existing_purchase = Purchase.objects.get(id=purchase_id)
+            updated_purchase_serializer = PurchaseSerializer(instance=existing_purchase, data=request.data)
+            if updated_purchase_serializer.is_valid():
+                updated_purchase_serializer.save()
                 return api_response(
                     is_success=True,
                     error_message=None,
                     status_code=status.HTTP_200_OK,
-                    result=updated_transaction_serializer.data,
+                    result=updated_purchase_serializer.data,
                 )
             return api_response(
                     is_success=False,
-                    error_message=updated_transaction_serializer.errors,
+                    error_message=updated_purchase_serializer.errors,
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None,
                 )
 
-        except Transaction.DoesNotExist:
+        except Purchase.DoesNotExist:
             return api_response(
                 is_success=False,
-                error_message="The transaction does not exist.",
+                error_message="The purchase does not exist.",
                 status_code=status.HTTP_404_NOT_FOUND,
                 result=None,
             )
@@ -761,38 +732,38 @@ class TransactionAPIView(APIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message="An error occurred while updating the transaction. " + str(e),
+                error_message="An error occurred while updating the purchase. " + str(e),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 result=None,
             )
         
     def delete(self, request, *args, **kwargs):
         try:
-            #getting transaction id from url
-            transaction_id = request.data.get('id')
+            #getting purchase id
+            purchase_id = request.data.get('id')
 
-            if not transaction_id:
+            if not purchase_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided in the url to delete a transaction.",
+                    error_message="An ID must be provided in the url to delete a purchase.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None
                 )
             
-            deleted_transaction = Transaction.objects.get(id=transaction_id)
-            deleted_transaction.delete()
+            deleted_purchase = Purchase.objects.get(id=purchase_id)
+            deleted_purchase.delete()
 
             return api_response(
                 is_success=True,
                 error_message=None,
                 status_code=status.HTTP_204_NO_CONTENT,
-                result="Transaction deleted successfully.",
+                result="Purchase deleted successfully.",
             )
         
-        except Transaction.DoesNotExist:
+        except Purchase.DoesNotExist:
             return api_response(
                 is_success=False,
-                error_message="The transaction does not exist.",
+                error_message="The purchase does not exist.",
                 status_code=status.HTTP_404_NOT_FOUND,
                 result=None,
             )
@@ -800,32 +771,40 @@ class TransactionAPIView(APIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message="An error occurred while deleting the transaction. " + str(e),
+                error_message="An error occurred while deleting the purchase. " + str(e),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 result=None,
             )
         
-class TransactionItemAPIView(APIView):
+class PurchaseItemAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
-            transaction_id = kwargs.get('id') #getting transaction ID from the URL if provided
+            purchase_id = kwargs.get('id') #getting purchase ID from the URL if provided
 
-            #fetching the specific transaction items excluding supplier details
-            transaction = get_object_or_404(Transaction, id=transaction_id)
-            transaction_item = transaction.transactionitem_transaction.all()
-            transaction_item_serializer = TransactionItemSerializer(transaction_item, many=True)
+            if not purchase_id:
+                return api_response(
+                    is_success=False,
+                    error_message="An ID must be provided in the url to view purchase items.",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    result=None
+                )
+
+            #fetching the specific purchase items excluding supplier details
+            purchase = get_object_or_404(Purchase, id=purchase_id)
+            purchase_item = purchase.purchaseitem_purchase.all()
+            purchase_item_serializer = PurchaseItemSerializer(purchase_item, many=True)
 
             return api_response(
                 is_success=True,
                 error_message=None,
                 status_code=status.HTTP_200_OK,
-                result=transaction_item_serializer.data,
+                result=purchase_item_serializer.data,
             )
             
-        except TransactionItem.DoesNotExist:
+        except PurchaseItem.DoesNotExist:
             return api_response(
                 is_success=False,
-                error_message="The transaction item does not exist.",
+                error_message="The purchase item does not exist.",
                 status_code=status.HTTP_404_NOT_FOUND,
                 result=None,
             )
@@ -833,26 +812,26 @@ class TransactionItemAPIView(APIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message="An error occurred while fetching transaction items. Please try again later." + str(e),
+                error_message="An error occurred while fetching purchase items. Please try again later." + str(e),
                 status_code=status.HTTP_400_BAD_REQUEST,
                 result=None,
             )
 
     def post(self, request, *args, **kwargs):
         try:
-            new_transaction_item = request.data
-            new_transaction_item_serializer = TransactionItemSerializer(data=new_transaction_item)
-            if new_transaction_item_serializer.is_valid():
-                new_transaction_item_serializer.save()
+            new_purchase_item = request.data
+            new_purchase_item_serializer = PurchaseItemSerializer(data=new_purchase_item)
+            if new_purchase_item_serializer.is_valid():
+                new_purchase_item_serializer.save()
                 return api_response(
                     is_success=True,
                     error_message=None,
                     status_code=status.HTTP_201_CREATED,
-                    result=new_transaction_item_serializer.data,
+                    result=new_purchase_item_serializer.data,
                 )
             return api_response(
                 is_success=False,
-                error_message=new_transaction_item_serializer.errors,
+                error_message=new_purchase_item_serializer.errors,
                 status_code=status.HTTP_400_BAD_REQUEST,
                 result=None,
             )
@@ -867,37 +846,37 @@ class TransactionItemAPIView(APIView):
         
     def put(self, request, *args, **kwargs):
         try:
-            transaction_item_id = request.data.get("id")
+            purchase_item_id = request.data.get("id")
 
-            if not transaction_item_id:
+            if not purchase_item_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided to update a transaction item.",
+                    error_message="An ID must be provided to update a purchase item.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None,
                 )
             
-            existing_transaction_item = TransactionItem.objects.get(id=transaction_item_id)
-            updated_transaction_item_serializer = TransactionItemSerializer(instance=existing_transaction_item, data=request.data)
-            if updated_transaction_item_serializer.is_valid():
-                updated_transaction_item_serializer.save()
+            existing_purchase_item = PurchaseItem.objects.get(id=purchase_item_id)
+            updated_purchase_item_serializer = PurchaseItemSerializer(instance=existing_purchase_item, data=request.data)
+            if updated_purchase_item_serializer.is_valid():
+                updated_purchase_item_serializer.save()
                 return api_response(
                     is_success=True,
                     error_message=None,
                     status_code=status.HTTP_200_OK,
-                    result=updated_transaction_item_serializer.data,
+                    result=updated_purchase_item_serializer.data,
                 )
             return api_response(
                     is_success=False,
-                    error_message=updated_transaction_item_serializer.errors,
+                    error_message=updated_purchase_item_serializer.errors,
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None,
                 )
 
-        except TransactionItem.DoesNotExist:
+        except PurchaseItem.DoesNotExist:
             return api_response(
                 is_success=False,
-                error_message="The transaction item does not exist.",
+                error_message="The purchase item does not exist.",
                 status_code=status.HTTP_404_NOT_FOUND,
                 result=None,
             )
@@ -905,37 +884,37 @@ class TransactionItemAPIView(APIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message="An error occurred while updating transaction item. " + str(e),
+                error_message="An error occurred while updating purchase item. " + str(e),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 result=None,
             )
         
     def delete(self, request, *args, **kwargs):
         try:
-            transaction_item_id = request.data.get('id')
+            purchase_item_id = request.data.get('id')
 
-            if not transaction_item_id:
+            if not purchase_item_id:
                 return api_response(
                     is_success=False,
-                    error_message="An ID must be provided to delete a transaction item.",
+                    error_message="An ID must be provided to delete a purchase item.",
                     status_code=status.HTTP_400_BAD_REQUEST,
                     result=None
                 )
             
-            deleted_transaction = TransactionItem.objects.get(id=transaction_item_id)
-            deleted_transaction.delete()
+            deleted_purchase = PurchaseItem.objects.get(id=purchase_item_id)
+            deleted_purchase.delete()
 
             return api_response(
                 is_success=True,
                 error_message=None,
                 status_code=status.HTTP_204_NO_CONTENT,
-                result="Transaction Item deleted successfully.",
+                result="Purchase Item deleted successfully.",
             )
         
-        except TransactionItem.DoesNotExist:
+        except PurchaseItem.DoesNotExist:
             return api_response(
                 is_success=False,
-                error_message="The transaction item does not exist.",
+                error_message="The purchase item does not exist.",
                 status_code=status.HTTP_404_NOT_FOUND,
                 result=None,
             )
@@ -943,7 +922,7 @@ class TransactionItemAPIView(APIView):
         except Exception as e:
             return api_response(
                 is_success=False,
-                error_message="An error occurred while deleting the transaction item. " + str(e),
+                error_message="An error occurred while deleting the purchase item. " + str(e),
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 result=None,
             )
@@ -1084,9 +1063,17 @@ class ProjectAPIView(APIView):
 class ProjectItemAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
-            project_item_id = kwargs.get('id')  #getting transaction ID from the URL if provided
+            project_item_id = kwargs.get('id')  #getting project ID from the URL if provided
 
-            #fetching the specific transaction items excluding supplier details
+            if not project_item_id:
+                return api_response(
+                    is_success=False,
+                    error_message="An ID must be provided in the url to view project items.",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    result=None
+                )
+
+            #fetching the specific project items excluding project details
             project = get_object_or_404(Project, id=project_item_id)
             project_item = project.project_item_project.all()
             project_item_serializer = ProjectItemSerializer(project_item, many=True)

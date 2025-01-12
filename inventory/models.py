@@ -121,19 +121,19 @@ class Supplier(models.Model):
     def __str__(self):
         return self.supplierName
 
-class TransactionItem(models.Model):
-    transaction = models.ForeignKey('Transaction', on_delete=models.CASCADE, related_name='transactionitem_transaction')
-    item = models.ForeignKey('Item', on_delete=models.PROTECT, related_name='transactionitem_item')
-    category = models.ForeignKey('Category', on_delete=models.PROTECT, related_name='transactionitem_category')
+class PurchaseItem(models.Model):
+    purchase = models.ForeignKey('Purchase', on_delete=models.CASCADE, related_name='purchaseitem_purchase')
+    item = models.ForeignKey('Item', on_delete=models.PROTECT, related_name='purchaseitem_item')
+    category = models.ForeignKey('Category', on_delete=models.PROTECT, related_name='purchaseitem_category')
     quantity = models.PositiveIntegerField()
     price = models.PositiveIntegerField()
     
     def __str__(self):
-        return self.transaction.billNo
+        return self.purchase.billNo
 
-class Transaction(models.Model):
+class Purchase(models.Model):
     billNo = models.CharField(max_length=30, unique=True)
-    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='transaction_supplier')
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='purchase_supplier')
     totalPrice = models.PositiveIntegerField(editable=False, null=True, blank=True)
     finalPriceWithVat = models.PositiveIntegerField(editable=False, null=True, blank=True)
     date = models.DateTimeField(auto_now_add=True)

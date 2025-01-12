@@ -26,9 +26,13 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'categoryName', 'categoryQuantity']
 
     def update(self, instance, validated_data):
-        #checking if categoryQuantity is being updated
+        #checking if categoryQuantity is in the validated_data and if its value is being changed
         if 'categoryQuantity' in validated_data:
-            raise serializers.ValidationError("categoryQuantity cannot be updated this way.")
+            new_quantity = validated_data['categoryQuantity']
+            current_quantity = instance.categoryQuantity
+            
+            if new_quantity != current_quantity:  #comparing new value with the current value
+                raise serializers.ValidationError("categoryQuantity cannot be updated to a different value.")
         
         #if categoryQuantity is not being updated, continue with the regular update
         return super().update(instance, validated_data)
@@ -83,22 +87,23 @@ class SupplierSerializer(serializers.ModelSerializer):
 
         return instance
 
-class TransactionItemSerializer(serializers.ModelSerializer):
+class PurchaseItemSerializer(serializers.ModelSerializer):
     class Meta:
-        model = TransactionItem
-        fields = ['id', 'transaction', 'category', 'item', 'quantity', 'price']
+        model = PurchaseItem
+        fields = ['id', 'purchase', 'category', 'item', 'quantity', 'price']
 
-class TransactionSerializer(serializers.ModelSerializer):
-    transactionitem_transaction = TransactionItemSerializer(many=True, read_only=True)
+class PurchaseSerializer(serializers.ModelSerializer):
+    purchaseitem_purchase = PurchaseItemSerializer(many=True, read_only=True)
 
     class Meta:
-        model = Transaction
-        fields = ['id', 'billNo', 'supplier', 'totalPrice', 'finalPriceWithVat', 'paymentStatus', 'transactionitem_transaction']
+        model = Purchase
+        fields = ['id', 'billNo', 'supplier', 'totalPrice', 'finalPriceWithVat', 'paymentStatus', 'purchaseitem_purchase']
 
 class ProjectItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectItem
-        fields = ['id', 'associated_project', 'item', 'quantity', 'individual_items']
+        fields = ['id', 'associated_project', 'item', 'quantity']
+        #read_only_fields = ['individual_items']
 
 class ProjectSerializer(serializers.ModelSerializer):
     project_item_project = ProjectItemSerializer(many=True, read_only=True)
