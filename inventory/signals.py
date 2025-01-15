@@ -38,103 +38,6 @@ def capture_original_quantities(sender, instance, **kwargs):
             instance._original_quantities = {}
 
 
-# @receiver([post_save, post_delete], sender=PurchaseItem)
-# def update_purchase(sender, instance, created=None, **kwargs):
-#     def update_purchase_totals():
-#         if not hasattr(instance, 'purchase') or not instance.purchase:
-#             return
-            
-#         purchase_instance = instance.purchase
-        
-#         result = PurchaseItem.objects.filter(purchase=purchase_instance).aggregate(
-#             total_price=Sum(F('quantity') * F('price'))
-#         )
-        
-#         total_price = result['total_price'] or 0
-#         final_price_with_vat = ceil(total_price * 1.13)
-
-#         purchase_instance.totalPrice = total_price
-#         purchase_instance.finalPriceWithVat = final_price_with_vat
-#         purchase_instance.save(update_fields=['totalPrice', 'finalPriceWithVat'])
-
-#     def validate_purchase_item():
-#         # Category validation
-#         if instance.item.itemCategory != instance.category:
-#             raise ValueError(f"Item category mismatch for: {instance.item.itemName}")
-        
-#         # Supplier validation
-#         purchase_supplier = instance.purchase.supplier
-#         is_supplied = SupplierItem.objects.filter(
-#             supplier=purchase_supplier, 
-#             item=instance.item
-#         ).exists()
-        
-#         if not is_supplied:
-#             raise ValueError(f"{purchase_supplier.supplierName} doesn't supply the item {instance.item.itemName}")
-        
-#         # Price validation
-#         price_of_supplied_item = SupplierItem.objects.filter(
-#             supplier=purchase_supplier,
-#             item=instance.item
-#         ).first()
-        
-#         if instance.price != price_of_supplied_item.price:
-#             raise ValueError(f"Item price mismatch for: {instance.item.itemName}")
-
-#     try:
-#         with transaction.atomic():
-#             # First validate the purchase item
-#             validate_purchase_item()
-            
-#             # Then handle quantity updates and price changes
-#             if kwargs.get('signal') == post_save:
-#                 if created:
-#                     instance.item.itemQuantity += instance.quantity
-#                     instance.item.save()
-                    
-#                     individual_items = IndividualItem.objects.filter(
-#                         item=instance.item, 
-#                         is_available=True
-#                     ).order_by('itemCode')[:instance.quantity]
-                    
-#                     for ind_item in individual_items:
-#                         ind_item.price = instance.price
-#                         ind_item.save(update_fields=['price'])
-#                 else:
-#                     original_quantities = getattr(instance, '_original_quantities', {})
-#                     original_quantity = original_quantities.get(instance.pk, instance.quantity)
-#                     quantity_diff = instance.quantity - original_quantity
-                    
-#                     instance.item.itemQuantity += quantity_diff
-#                     instance.item.save()
-                    
-#                     individual_items = IndividualItem.objects.filter(
-#                         item=instance.item, 
-#                         is_available=True
-#                     ).order_by('itemCode')[:instance.quantity]
-                    
-#                     for ind_item in individual_items:
-#                         ind_item.price = instance.price
-#                         ind_item.save(update_fields=['price'])
-            
-#             elif kwargs.get('signal') == post_delete:
-#                 instance.item.itemQuantity -= instance.quantity
-#                 instance.item.save()
-
-#             # Finally update purchase totals
-#             update_purchase_totals()
-            
-#     except ValueError as ve:
-#         # Handle validation errors
-#         raise Exception(f"Validation error: {str(ve)}")
-#     except DatabaseError as de:
-#         # Handle database-specific errors
-#         raise Exception(f"Database error: {str(de)}")
-#     except Exception as e:
-#         # Handle unexpected errors
-#         raise Exception(f"Unexpected error: {str(e)}")
-
-
 ###here, instance is being used instead of self, as we're working with instance of Transcation and not of signal###
 @receiver([post_save, post_delete], sender=PurchaseItem)
 def update_purchase(sender, instance, created=None, **kwargs):
@@ -181,32 +84,6 @@ def update_purchase(sender, instance, created=None, **kwargs):
 
     try:
         with transaction.atomic():
-            #making sure category matches before updating
-            if instance.item.itemCategory != instance.category:
-                raise ValueError(f"Item category mismatch for: {instance.item.itemName}")
-            
-            #making sure current item being added to purchase item with said supplier supplies the item, if not, exception raised
-            
-            #first, getting the supplier of the purchase
-            purchase_supplier = instance.purchase.supplier
-
-            is_supplied = SupplierItem.objects.filter(
-                supplier=purchase_supplier, 
-                item=instance.item
-            ).exists()
-
-            if not is_supplied:
-                raise Exception(f"{purchase_supplier.supplierName} doesn't supply the item {instance.item.itemName}.")
-            
-            #making sure the item that the supplier sells is set to correct price by the user
-            price_of_supplied_item = SupplierItem.objects.filter(
-                supplier = purchase_supplier,
-                item = instance.item
-            ).first()
-            
-            if instance.price != price_of_supplied_item.price:
-                raise ValueError(f"Item price mismatch for: {instance.item.itemName}")
-            
             purchase_items = PurchaseItem.objects.filter(purchase=instance.purchase)
 
             if kwargs.get('signal') == post_save:   

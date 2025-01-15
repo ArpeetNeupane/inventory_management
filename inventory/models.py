@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 class IndividualItem(models.Model):
     item = models.ForeignKey('Item', on_delete=models.CASCADE, related_name='individual_items') #related name is a property that allows items to be searched using that name (here, item belongs to what what items with their codes)
@@ -128,6 +129,54 @@ class PurchaseItem(models.Model):
     quantity = models.PositiveIntegerField()
     price = models.PositiveIntegerField()
     
+    def clean(self):
+        #checking if required fields exist
+        if not all([self.purchase, self.item, self.category]):
+            raise ValidationError("Purchase, Item and Category must be set")
+            
+        #category Validation
+        if self.item.itemCategory != self.category:
+            raise ValidationError({
+                'category': f"Category mismatch for item: {self.item.itemName}. "
+                           f"Expected {self.item.itemCategory}, got {self.category}"
+            })
+            
+        #supplier Validation
+        purchase_supplier = self.purchase.supplier
+        
+        is_supplied = SupplierItem.objects.filter(
+            supplier=purchase_supplier,
+            item=self.item
+        ).exists()
+        
+        if not is_supplied:
+            raise ValidationError({
+                'item': f"Supplier '{purchase_supplier.supplierName}' "
+                       f"doesn't supply the item '{self.item.itemName}'"
+            })
+            
+        #price Validation
+        price_of_supplied_item = SupplierItem.objects.filter(
+            supplier=purchase_supplier,
+            item=self.item
+        ).first()
+        
+        if not price_of_supplied_item:
+            raise ValidationError({
+                'price': f"No price information found for item '{self.item.itemName}' "
+                        f"from supplier '{purchase_supplier.supplierName}'"
+            })
+            
+        if self.price != price_of_supplied_item.price:
+            raise ValidationError({
+                'price': f"Price mismatch for item '{self.item.itemName}'. "
+                        f"Expected {price_of_supplied_item.price}, got {self.price}"
+            })
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()  #calling the clean() method, full_clean validates all fields and custom validation code as well
+        super().save(*args, **kwargs)
+        
     def __str__(self):
         return self.purchase.billNo
 
